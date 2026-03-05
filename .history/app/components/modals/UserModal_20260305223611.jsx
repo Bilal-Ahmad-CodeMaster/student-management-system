@@ -71,7 +71,7 @@ export default function UserModal({ isOpen, onClose, user, refresh }) {
 
         setLoading(true);
         const data = new FormData(); // Using FormData for multi-part/binary data
-    
+        FormData.append("")
         // Professional mapping of text fields
         Object.keys(formData).forEach(key => {
             if (key !== 'picture' && formData[key]) {
