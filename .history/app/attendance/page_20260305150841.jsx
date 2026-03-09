@@ -88,6 +88,7 @@ export default function AttendancePage() {
                 presentStudentIds: presentIDs
             });
             toast.success("Attendance successfully synchronized!");
+            
         } catch (err) {
             toast.error("Failed to save attendance");
         } finally {

@@ -14,7 +14,7 @@ export default function AttendancePage() {
     const [presentIDs, setPresentIDs] = useState([]);
     const [statusMessage, setStatusMessage] = useState("");
     const [progress, setProgress] = useState(0);
-    const router = useRouter();
+
     useEffect(() => {
         loadModels();
         api.get("/course/all").then(res => setCourses(res.data.data.courses));
@@ -88,7 +88,6 @@ export default function AttendancePage() {
                 presentStudentIds: presentIDs
             });
             toast.success("Attendance successfully synchronized!");
-            router.push(`/course-attendance/${selectedCourse}`);
         } catch (err) {
             toast.error("Failed to save attendance");
         } finally {

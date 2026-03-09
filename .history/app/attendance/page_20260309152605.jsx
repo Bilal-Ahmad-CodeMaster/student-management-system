@@ -88,7 +88,6 @@ export default function AttendancePage() {
                 presentStudentIds: presentIDs
             });
             toast.success("Attendance successfully synchronized!");
-            router.push(`/course-attendance/${selectedCourse}`);
         } catch (err) {
             toast.error("Failed to save attendance");
         } finally {
