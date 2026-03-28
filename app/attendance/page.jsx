@@ -1,11 +1,12 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import * as faceapi from 'face-api.js';
 import { loadModels, getLabeledFaceDescriptions } from "@/app/lib/face-api-util";
 import api from "@/app/lib/axios";
 import toast from "react-hot-toast";
-import { Camera, Loader2, CheckCircle, XCircle, Search, UploadCloud, Info, LayoutGrid } from "lucide-react";
-import { useRouter } from "next/navigation"; // 1. Add this import
+import { Camera, Loader2, CheckCircle, XCircle, Search, UploadCloud, Info, LayoutGrid, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 export default function AttendancePage() {
     const [courses, setCourses] = useState([]);
     const [selectedCourse, setSelectedCourse] = useState("");
@@ -14,12 +15,56 @@ export default function AttendancePage() {
     const [presentIDs, setPresentIDs] = useState([]);
     const [statusMessage, setStatusMessage] = useState("");
     const [progress, setProgress] = useState(0);
+    const [isCameraOpen, setIsCameraOpen] = useState(false); // New State
+
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
     const router = useRouter();
+
     useEffect(() => {
         loadModels();
         api.get("/course/all").then(res => setCourses(res.data.data.courses));
     }, []);
 
+    // --- Camera Functions ---
+    const startCamera = async () => {
+        if (!selectedCourse) return toast.error("Please select a course first!");
+        setIsCameraOpen(true);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+        } catch (err) {
+            toast.error("Could not access camera. Please check permissions.");
+            setIsCameraOpen(false);
+        }
+    };
+
+    const stopCamera = () => {
+        const stream = videoRef.current?.srcObject;
+        const tracks = stream?.getTracks();
+        tracks?.forEach(track => track.stop());
+        setIsCameraOpen(false);
+    };
+
+    const capturePhoto = () => {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        if (video && canvas) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext("2d").drawImage(video, 0, 0);
+
+            canvas.toBlob((blob) => {
+                const file = new File([blob], "captured_photo.jpg", { type: "image/jpeg" });
+                handleClassPhotoUpload({ target: { files: [file] } }); // Reuse your upload logic
+                stopCamera();
+            }, "image/jpeg");
+        }
+    };
+
+    // --- Original Logic (Unchanged) ---
     const handleClassPhotoUpload = async (e) => {
         const file = e.target.files[0];
         if (!file || !selectedCourse) return toast.error("Please select a course first!");
@@ -35,7 +80,6 @@ export default function AttendancePage() {
 
             if (!students?.length) throw new Error("No students are assigned to this course.");
 
-            // Step 1: Process Student Profiles
             const labeledDescriptors = await getLabeledFaceDescriptions(students, (msg) => {
                 setStatusMessage(msg);
                 setProgress(prev => Math.min(prev + (100 / students.length / 2), 45));
@@ -45,7 +89,6 @@ export default function AttendancePage() {
 
             const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55);
 
-            // Step 2: Process Class Photo
             setStatusMessage("Optimizing class photo for neural scan...");
             setProgress(60);
             const img = await faceapi.bufferToImage(file);
@@ -98,13 +141,11 @@ export default function AttendancePage() {
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 text-slate-900 pb-24 pt-4 px-6">
-            {/* Page Header */}
             <div className="flex flex-col gap-1">
                 <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Attendance Intelligence</h1>
                 <p className="text-slate-500 text-sm">Automated face recognition for streamlined classroom management.</p>
             </div>
 
-            {/* Top Control Panel */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-white/80 backdrop-blur-md p-8 rounded-[2rem] border border-slate-200/60 shadow-sm flex flex-col justify-center space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -123,21 +164,33 @@ export default function AttendancePage() {
 
                         <div className="space-y-3">
                             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                <UploadCloud size={14} /> 2. Global Scan
+                                <Camera size={14} /> 2. Capture or Upload
                             </label>
-                            <div className="relative group">
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleClassPhotoUpload}
-                                    className="w-full text-sm text-slate-500 file:mr-4 file:py-3.5 file:px-6 file:rounded-2xl file:border-0 file:text-xs file:font-bold file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer transition-all"
-                                />
+                            <div className="flex gap-2">
+                                {/* New Camera Toggle */}
+                                <button
+                                    onClick={startCamera}
+                                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-900 py-3.5 px-4 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Camera size={16} /> Take Photo
+                                </button>
+
+                                <div className="relative flex-1 group">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleClassPhotoUpload}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                    />
+                                    <button className="w-full bg-slate-900 text-white py-3.5 px-4 rounded-2xl text-xs font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+                                        <UploadCloud size={16} /> Upload
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Right Summary Card */}
                 <div className="bg-slate-900 rounded-[2rem] p-8 text-white flex flex-col justify-center relative overflow-hidden shadow-2xl shadow-slate-900/20">
                     <div className="relative z-10 space-y-2">
                         <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Today's Summary</p>
@@ -148,7 +201,33 @@ export default function AttendancePage() {
                 </div>
             </div>
 
-            {/* Analysis State */}
+            {/* Camera Overlay Modal */}
+            {isCameraOpen && (
+                <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-lg flex items-center justify-center p-6">
+                    <div className="w-full max-w-2xl bg-white rounded-[2.5rem] overflow-hidden shadow-2xl relative">
+                        <button onClick={stopCamera} className="absolute top-6 right-6 z-20 p-2 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full text-white md:text-slate-900 transition-all">
+                            <X size={24} />
+                        </button>
+                        <div className="relative bg-black aspect-video flex items-center justify-center">
+                            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                            <canvas ref={canvasRef} className="hidden" />
+                        </div>
+                        <div className="p-8 flex flex-col items-center gap-4">
+                            <div className="text-center">
+                                <h3 className="text-xl font-bold text-slate-900">Capture Class Photo</h3>
+                                <p className="text-slate-500 text-sm">Align all students within the frame for best results.</p>
+                            </div>
+                            <button
+                                onClick={capturePhoto}
+                                className="w-20 h-20 bg-slate-900 rounded-full border-8 border-slate-200 flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-all shadow-xl"
+                            >
+                                <div className="w-4 h-4 bg-white rounded-full" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {scanning && (
                 <div className="p-12 bg-white rounded-[2rem] border border-slate-200 shadow-xl flex flex-col items-center justify-center space-y-6 animate-in fade-in zoom-in duration-300">
                     <div className="relative">
@@ -165,7 +244,6 @@ export default function AttendancePage() {
                 </div>
             )}
 
-            {/* Results Grid */}
             {selectedCourse && !scanning && (
                 <div className="space-y-6">
                     <div className="flex items-center justify-between px-2">
@@ -198,7 +276,6 @@ export default function AttendancePage() {
                 </div>
             )}
 
-            {/* Footer Action */}
             {presentIDs.length > 0 && !scanning && (
                 <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-md px-6 animate-in slide-in-from-bottom-8 duration-500">
                     <button
