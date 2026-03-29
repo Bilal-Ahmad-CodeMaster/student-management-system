@@ -126,9 +126,12 @@ export default function AttendancePage() {
     const submitAttendance = async () => {
         setLoading(true);
         try {
+            const today = new Date().toISOString().split("T")[0];
             await api.post("/course/mark-attendance", {
                 courseId: selectedCourse,
-                presentStudentIds: presentIDs
+                presentStudentIds: presentIDs,
+                date: today
+                
             });
             toast.success("Attendance successfully synchronized!");
             router.push(`/course-attendance/${selectedCourse}`);
